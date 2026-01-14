@@ -1,18 +1,10 @@
-const CACHE_NAME = 'majid-avatar-v1';
+const CACHE_NAME = 'clone-humain-v1';
 const urlsToCache = [
   '/',
   '/index.html',
+  '/manifest.json',
   '/zero.jpg',
-  '/sprites/bouche_A.png',
-  '/sprites/bouche_B.png',
-  '/sprites/bouche_C.png',
-  '/sprites/bouche_D.png',
-  '/sprites/bouche_E.png',
-  '/sprites/bouche_F.png',
-  '/sprites/bouche_G.png',
-  '/sprites/bouche_H.png',
-  '/icon-192.png',
-  '/icon-512.png'
+  // Add other assets like sprites if needed
 ];
 
 self.addEventListener('install', (event) => {
@@ -25,6 +17,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
-      .then((response) => response || fetch(event.request))
+      .then((response) => {
+        // Return cached version or fetch from network
+        return response || fetch(event.request);
+      }
+    )
   );
 });
