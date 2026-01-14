@@ -1,0 +1,9 @@
+{
+  "name": "Clone Humain - T.T.A Distribution",
+  "short_name": "Clone Humain",
+  "description": "Avatar parlant avec reconnaissance vocale et synthèse",
+  "start_url": "/",
+  "display": "fullscreen",
+  "background_color": "#0f0f1b",
+  "theme_color": "#00f0ff"
+}
