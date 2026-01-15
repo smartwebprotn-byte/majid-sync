@@ -2,21 +2,20 @@
 <html lang="fr">
 
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Clone Humain - T.T.A Distribution</title>
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#00f0ff" />
-  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <meta name="theme-color" content="#00f0ff">
   <style>
+    /* --- STYLE GLOBAL --- */
     body {
       margin: 0;
       padding: 0;
       background: #0f0f1b;
       color: white;
       font-family: 'Segoe UI', sans-serif;
-      overflow: hidden;
+      overflow-x: hidden;
+      min-height: 100vh;
     }
 
     .container {
@@ -28,12 +27,12 @@
       background: radial-gradient(circle at center, #1a1a2e 0%, #000 100%);
     }
 
-    /* --- WRAPPER : Il prend exactement la taille de l'image de base --- */
     .face-wrapper {
       position: relative;
       width: fit-content;
       height: fit-content;
       filter: drop-shadow(0 0 30px rgba(0, 240, 255, 0.15));
+      max-width: 100%;
     }
 
     #faceBase {
@@ -45,40 +44,52 @@
       pointer-events: none;
     }
 
-    /* --- LE MASQUE (Désormais forme variable) --- */
+    /* Fenêtre de masque : zone visible de la bouche - NET */
     #mouthMaskContainer {
+      position: absolute;
+      overflow: hidden;
+      z-index: 10;
+      /* SUPPRESSION du filter blur qui rendait les visèmes flous */
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 20%;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: transform;
+    }
+
+    /* SPRITE OPTIMISÉ - Retour aux images individuelles */
+    #mouthSprite {
       position: absolute;
       top: 50%;
       left: 50%;
-      width: 20%;
-      height: 10%;
-
-      /* border-radius n'est plus fixe ici, il est géré par le JS */
-
-      /* Bordure fine pour le repérage (à mettre opacity:0 pour la prod) */
-      border: 1px solid rgba(0, 240, 255, 0.5);
-      overflow: hidden;
-      z-index: 10;
-      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+      width: 100%;
+      height: 100%;
+      /* GPU ACCÉLÉRATION */
+      transform: translate(-50%, -50%) translate3d(var(--x, 0px), var(--y, 0px), 0) scale(var(--scale, 1));
+      will-change: transform;
+      /* TRANSITION FIXE */
+      transition: opacity 0.03s ease-in-out, transform 0.03s ease-in-out;
     }
 
-    /* --- L'IMAGE DU VISÈME (Calque complet) --- */
-    #mouthSprite {
-      position: absolute;
-      top: none;
-      left: none;
-      max-width: none;
-      max-height: none;
-      pointer-events: none;
+    /* Transition fluide entre visèmes avec interpolation */
+    #mouthSprite.animated {
+      transition: opacity 0.03s ease-in-out, transform 0.03s ease-in-out;
     }
 
-    /* --- CONTROLS UI --- */
+    /* --- CONTROLES --- */
     .controls {
-      position: absolute;
+      position: fixed;
       bottom: 20px;
       width: 100%;
       text-align: center;
       z-index: 20;
+      pointer-events: none;
+    }
+
+    .controls button {
+      pointer-events: auto;
     }
 
     button {
@@ -90,326 +101,1273 @@
       border-radius: 20px;
       cursor: pointer;
       backdrop-filter: blur(4px);
-      transition: 0.3s;
+      transition: all 0.3s;
     }
 
     button:hover {
       background: #00f0ff;
       color: #000;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0, 240, 255, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
     }
 
     .status {
       margin-top: 10px;
       color: #aaa;
       font-size: 0.9em;
+      min-height: 1.2em;
+      transition: color 0.3s;
     }
 
-    /* --- SETTINGS PANEL --- */
+    .status.speaking {
+      color: #00f0ff;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    .error {
+      color: #ff6b6b;
+      font-weight: bold;
+    }
+
+    /* --- PANNEAU DE RÉGLAGES --- */
     .settings-panel {
       position: fixed;
       top: 0;
-      right: -300px;
-      width: 300px;
+      right: -320px;
+      width: 320px;
       height: 100vh;
-      background: rgba(16, 16, 26, 0.95);
+      background: rgba(16, 16, 26, 0.97);
       border-left: 1px solid #00f0ff;
       z-index: 100;
-      transition: right 0.3s;
+      transition: right 0.3s ease-in-out;
       padding: 20px;
       box-sizing: border-box;
       color: #fff;
       overflow-y: auto;
+      backdrop-filter: blur(10px);
     }
 
     .settings-panel.open {
       right: 0;
+      box-shadow: -10px 0 30px rgba(0, 240, 255, 0.2);
     }
 
     .setting-group {
       margin-bottom: 15px;
     }
 
-    .setting-label {
-      display: block;
-      color: #888;
-      font-size: 0.8em;
-      margin-bottom: 5px;
+    .setting-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      gap: 10px;
     }
 
-    input[type="number"],
+    .setting-label {
+      flex: 1;
+      color: #ccc;
+      font-size: 0.8em;
+    }
+
+    .setting-value {
+      color: #00f0ff;
+      font-weight: bold;
+      min-width: 50px;
+      text-align: right;
+    }
+
+    .setting-input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .setting-input {
+      width: 60px;
+      padding: 4px 6px;
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid #00f0ff;
+      border-radius: 4px;
+      color: #00f0ff;
+      font-size: 0.8em;
+      text-align: center;
+    }
+
+    .setting-input:focus {
+      outline: none;
+      background: rgba(0, 240, 255, 0.2);
+      box-shadow: 0 0 5px rgba(0, 240, 255, 0.5);
+    }
+
     input[type="range"] {
       width: 100%;
-      background: #222;
-      border: 1px solid #444;
-      color: #fff;
-      padding: 5px;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #333;
+      border-radius: 3px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #00f0ff;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.8);
+      transform: scale(1.2);
+    }
+
+    h3,
+    h4 {
+      color: #00f0ff;
+      margin: 10px 0;
     }
 
     h4 {
       border-bottom: 1px solid #00f0ff;
       padding-bottom: 5px;
       margin-top: 20px;
-      color: #00f0ff;
+    }
+
+    .close-btn {
+      float: right;
+      padding: 2px 8px;
+      border: 1px solid red;
+      color: red;
+      background: transparent;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 0.8em;
+      transition: all 0.2s;
+    }
+
+    .close-btn:hover {
+      background: rgba(255, 0, 0, 0.2);
+      transform: scale(1.1);
+    }
+
+    /* Indicateur de charge */
+    .loading-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, #00f0ff, #00ff88);
+      transition: width 0.3s;
+      z-index: 200;
+    }
+
+    /* Mode debug amélioré */
+    .debug-info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+      font-size: 0.8em;
+      color: #0f0;
+      font-family: monospace;
+      display: none;
+      max-width: 300px;
+    }
+
+    .debug-info.active {
+      display: block;
+    }
+
+    .debug-info .label {
+      color: #0f0;
+      display: inline-block;
+      width: 80px;
+    }
+
+    .debug-info .value {
+      color: #00ff00;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
+  <div class="loading-bar" id="loadingBar"></div>
 
   <div class="container">
     <div class="face-wrapper" id="faceWrapper">
-      <img id="faceBase" src="zero.jpg" alt="Visage Base"
-        onerror="this.src='https://via.placeholder.com/600x800/222/555?text=ZERO.JPG+MANQUANT'" />
+      <!-- Image de base : visage -->
+      <img id="faceBase" src="zero.jpg" alt="Visage Base">
+
+      <!-- Fenêtre de la bouche (masque) -->
       <div id="mouthMaskContainer">
-        <img id="mouthSprite" src="sprites/bouche_H.png" alt="Bouche" />
+        <!-- SPRITE OPTIMISÉ - Retour aux images individuelles -->
+        <img id="mouthSprite" src="sprites/bouche_H.png" alt="Bouche" class="animated">
       </div>
     </div>
 
     <div class="controls">
       <button onclick="startListening()">🎤 Parler</button>
-      <button onclick="stopListening()">⏹️ Stop</button>
-      <button onclick="testSpeech()">🔊 Test</button>
-      <button onclick="toggleSettings()">⚙️ Réglages Masque</button>
+      <button onclick="stopAll()">⏹️ Stop</button>
+      <button onclick="testSpeech()">🔊 Test (Sans Micro)</button>
+      <button onclick="toggleSettings()">⚙️ Réglages</button>
+      <button onclick="toggleDebug()">🐛 Debug</button>
       <div class="status" id="status">Prêt.</div>
     </div>
   </div>
 
-  <!-- PANNEAU REGLAGES -->
+  <div class="debug-info" id="debugInfo">
+    <strong>Debug Info:</strong><br>
+    <span class="label">FPS:</span> <span id="debugFPS" class="value">0</span><br>
+    <span class="label">Visème:</span> <span id="debugViseme" class="value">H</span><br>
+    <span class="label">Timeline:</span> <span id="debugTimeline" class="value">0/0</span><br>
+    <span class="label">Dimensions:</span> <span id="debugDimensions" class="value">0x0</span><br>
+    <span class="label">Latence:</span> <span id="debugLatency" class="value">0ms</span><br>
+    <span class="label">Contexte:</span> <span id="debugContext" class="value">-</span>
+  </div>
+
   <div class="settings-panel" id="settingsPanel">
-    <h3>Configuration <button style="float:right; padding:2px 8px;" onclick="toggleSettings()">×</button></h3>
+    <h3>
+      Configuration
+      <button class="close-btn" onclick="toggleSettings()">×</button>
+    </h3>
 
-    <h4>Forme & Position</h4>
-    <p style="font-size:0.7em; color:#666;">Déplacez le rectangle sur la bouche.</p>
-
+    <!-- ZONE MASQUE : position & taille par rapport au visage -->
+    <h4>Zone de la bouche</h4>
     <div class="setting-group">
       <label class="setting-label">Position X (%)</label>
-      <input type="range" id="maskLeft" min="0" max="100" step="0.1" value="48" oninput="updateMask()">
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskLeft" min="0" max="100" step="0.1">
+        <input type="range" id="maskLeft" min="0" max="100" step="0.1" value="49.8">
+      </div>
     </div>
-
     <div class="setting-group">
       <label class="setting-label">Position Y (%)</label>
-      <input type="range" id="maskTop" min="0" max="100" step="0.1" value="45" oninput="updateMask()">
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskTop" min="0" max="100" step="0.1">
+        <input type="range" id="maskTop" min="0" max="100" step="0.1" value="62.5">
+      </div>
     </div>
-
     <div class="setting-group">
       <label class="setting-label">Largeur (%)</label>
-      <input type="range" id="maskWidth" min="1" max="50" step="0.1" value="20" oninput="updateMask()">
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskWidth" min="5" max="50" step="0.1">
+        <input type="range" id="maskWidth" min="5" max="50" step="0.1" value="39.8">
+      </div>
     </div>
-
     <div class="setting-group">
       <label class="setting-label">Hauteur (%)</label>
-      <input type="range" id="maskHeight" min="1" max="40" step="0.1" value="10" oninput="updateMask()">
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskHeight" min="5" max="40" step="0.1">
+        <input type="range" id="maskHeight" min="5" max="40" step="0.1" value="38.2">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Arrondi bords (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskRadius" min="0" max="50" step="1">
+        <input type="range" id="maskRadius" min="0" max="50" step="1" value="20">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Flou bords (px)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_maskFeather" min="0" max="50" step="1">
+        <input type="range" id="maskFeather" min="0" max="50" step="1" value="5">
+      </div>
     </div>
 
-    <h4>Apparence</h4>
+    <!-- AJUSTEMENT DU SPRITE à l'intérieur du masque -->
+    <h4>Ajustement du sprite</h4>
     <div class="setting-group">
-      <label class="setting-label">Arrondi des coins (%)</label>
-      <!-- 0 = Rectangle strict, 50 = Ovale -->
-      <input type="range" id="maskRadius" min="0" max="50" step="1" value="0" oninput="updateMask()">
-      <small style="color:#666; font-size:0.7em;">0 = Rectangle, 50 = Ovale</small>
+      <label class="setting-label">Échelle visème (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_visemeScale" min="50" max="400" step="5">
+        <input type="range" id="visemeScale" min="50" max="600" step="5" value="250">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Décalage X (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_visemeOffsetX" min="-50" max="50" step="1">
+        <input type="range" id="visemeOffsetX" min="-50" max="50" step="1" value="0">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Décalage Y (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_visemeOffsetY" min="-80" max="50" step="1">
+        <input type="range" id="visemeOffsetY" min="-80" max="50" step="1" value="-33">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Rotation (°)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_visemeRotation" min="-45" max="45" step="1">
+        <input type="range" id="visemeRotation" min="-45" max="45" step="1" value="0">
+      </div>
     </div>
 
+    <!-- PARAMÈTRES LABIAUX GLOBAUX -->
+    <h4>Synchronisation labiale avancée</h4>
     <div class="setting-group">
-      <label class="setting-label">Flou des bords (px)</label>
-      <input type="range" id="maskFeather" min="0" max="50" step="1" value="5" oninput="updateMask()">
+      <label class="setting-label">Transition visèmes (ms)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_transitionMs" min="0" max="200" step="10">
+        <input type="range" id="transitionMs" min="0" max="200" step="10" value="70">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Durée base (ms)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_baseCharMs" min="30" max="150" step="5">
+        <input type="range" id="baseCharMs" min="30" max="150" step="5" value="80">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Pause entre mots (ms)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_wordPauseMs" min="0" max="300" step="10">
+        <input type="range" id="wordPauseMs" min="0" max="300" step="10" value="120">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Vitesse parole (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_speechRate" min="50" max="200" step="10">
+        <input type="range" id="speechRate" min="50" max="200" step="10" value="100">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Interpolation (%)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_interpolation" min="0" max="100" step="5">
+        <input type="range" id="interpolation" min="0" max="100" step="5" value="40">
+      </div>
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">Silence minimum (ms)</label>
+      <div class="setting-input-group">
+        <input type="number" class="setting-input" id="input_silenceMinMs" min="0" max="500" step="10">
+        <input type="range" id="silenceMinMs" min="0" max="500" step="10" value="15">
+      </div>
     </div>
 
-    <div class="setting-group">
-      <label class="setting-label">Masque visible</label>
-      <input type="checkbox" id="maskVisible" checked onchange="updateMask()">
-    </div>
-
-    <h4>Visème</h4>
-    <div class="setting-group">
-      <label class="setting-label">Déplacement X (px)</label>
-      <input type="range" id="visemeOffsetX" min="-500" max="500" step="1" value="0" oninput="updateMask()">
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Déplacement Y (px)</label>
-      <input type="range" id="visemeOffsetY" min="-500" max="500" step="1" value="0" oninput="updateMask()">
-    </div>
-    <div class="setting-group">
-      <label class="setting-label">Échelle (%)</label>
-      <input type="range" id="visemeScale" min="10" max="300" step="1" value="100" oninput="updateMask()">
-    </div>
-
-    <button style="width:100%; margin-top:20px;" onclick="saveSettings()">💾 Sauvegarder</button>
+    <button style="width:100%; margin-top:20px; background:#00f0ff; color:black;" onclick="saveSettings()">💾
+      Sauvegarder</button>
+    <button style="width:100%; margin-top:10px;" onclick="resetSettings()">🔄 Réinitialiser</button>
   </div>
 
   <script>
-    // --- CONFIGURATION ---
+    // --- CONFIG VISÈMES EXTENDUE (12 visèmes pour une meilleure précision) ---
     const VISEME_MAP = {
-      'A': 'bouche_A.png', 'B': 'bouche_B.png', 'C': 'bouche_C.png',
-      'D': 'bouche_D.png', 'E': 'bouche_E.png', 'F': 'bouche_F.png',
-      'G': 'bouche_G.png', 'H': 'bouche_H.png'
+      // H: Repos / Silence / Fermé (ex: M, B, P)
+      'H': 'bouche_H.png', // Visème de repos ou fermé
+      'A': 'bouche_A.png', // Voyelle ouverte (a, à, â)
+      'E': 'bouche_E.png', // Voyelle moyenne (é, è, ê)
+      'I': 'bouche_I.png', // Voyelle fermée (i, î, y)
+      'O': 'bouche_O.png', // Voyelle arrondie (o, ô, ou)
+      'U': 'bouche_U.png', // Voyelle arrondie fermée (u, ù)
+      'F': 'bouche_F.png', // Bilabiales/Labiodentales (f, v, m, b, p)
+      'S': 'bouche_S.png', // Sifflantes/Chuintantes (s, z, ch, j)
+      'N': 'bouche_N.png', // Nasales (n, gn)
+      'D': 'bouche_D.png', // Dentales/Occlusives (t, d, l, r)
+      'L': 'bouche_L.png', // Liquides (l, r)
+      'W': 'bouche_W.png'  // Glissantes (w, qu)
     };
 
-    // --- LOGIQUE D'ALIGNEMENT ---
+    // --- CLASSIFICATION DES VISÈMES POUR MODE HYBRIDE ---
+    const VISEME_TYPE = {
+      A: 'vowel',
+      E: 'vowel',
+      I: 'vowel',
+      O: 'vowel',
+      U: 'vowel',
+      W: 'vowel',
+      H: 'neutral',
+      F: 'consonant',
+      S: 'consonant',
+      N: 'consonant',
+      D: 'consonant',
+      L: 'consonant'
+    };
+
+    // Variables globales
+    let synth = window.speechSynthesis;
+    let recognition = null;
+    let animFrame = null;
+    let visemeImages = {};
+    let isReady = false;
+    let lastTimeline = null;
+    let faceBaseDimensions = { width: 0, height: 0 };
+    let currentViseme = 'H';
+    let debugMode = false;
+    let fpsCounter = { lastTime: 0, frames: 0, fps: 0 };
+    let resizeDebounce = null;
+    let lastContext = '-';
+    let lastVisemeTime = 0;
+
+    // --- Cache pour optimisation ---
+    const cache = {
+      maskDimensions: null,
+      lastSettings: null,
+      invalidate() {
+        this.maskDimensions = null;
+      }
+    };
+
+    // --- Récupération optimisée des dimensions ---
+    function getFaceBaseDimensions() {
+      const faceBase = document.getElementById('faceBase');
+      const rect = faceBase.getBoundingClientRect();
+      return {
+        width: rect.width || faceBase.clientWidth,
+        height: rect.height || faceBase.clientHeight,
+        naturalWidth: faceBase.naturalWidth,
+        naturalHeight: faceBase.naturalHeight
+      };
+    }
+
+    // --- Préchargement des visèmes avec barre de progression ---
+    function preloadImages() {
+      const status = document.getElementById('status');
+      const loadingBar = document.getElementById('loadingBar');
+      let loaded = 0;
+      const total = Object.keys(VISEME_MAP).length;
+      let hasError = false;
+
+      status.textContent = "Chargement des images...";
+
+      Object.entries(VISEME_MAP).forEach(([key, fileName]) => {
+        const img = new Image();
+        img.src = 'sprites/' + fileName;
+
+        img.onload = () => {
+          visemeImages[key] = img;
+          loaded++;
+          const progress = (loaded / total) * 100;
+          loadingBar.style.width = progress + '%';
+
+          if (loaded === total && !hasError) {
+            status.textContent = "✅ Prêt. Toutes les images chargées.";
+            isReady = true;
+            updateMask();
+            setTimeout(() => {
+              loadingBar.style.width = '0%';
+            }, 500);
+          }
+        };
+
+        img.onerror = () => {
+          console.error(`Erreur de chargement: sprites/${fileName}`);
+          status.innerHTML = `❌ Erreur: Image 'sprites/${fileName}' introuvable.`;
+          status.classList.add('error');
+          hasError = true;
+          loadingBar.style.background = 'red';
+        };
+      });
+    }
+
+    // --- MAJ de l'affichage des valeurs sliders ---
+    function updateSliderLabels() {
+      const ids = [
+        'maskLeft', 'maskTop', 'maskWidth', 'maskHeight',
+        'maskRadius', 'maskFeather',
+        'visemeScale', 'visemeOffsetX', 'visemeOffsetY', 'visemeRotation',
+        'transitionMs', 'baseCharMs', 'wordPauseMs', 'speechRate', 'interpolation', 'silenceMinMs'
+      ];
+      ids.forEach(id => {
+        const input = document.getElementById(id);
+        const label = document.getElementById('val_' + id);
+        if (input && label) {
+          let value = input.value;
+          if (id === 'speechRate' || id === 'interpolation' || id === 'visemeScale') {
+            label.textContent = value + '%';
+          } else if (id.includes('Ms')) {
+            label.textContent = value + 'ms';
+          } else if (id === 'visemeRotation') {
+            label.textContent = value + '°';
+          } else {
+            label.textContent = value;
+          }
+        }
+      });
+    }
+
+    // --- Mise à jour optimisée du masque & du sprite ---
     function updateMask() {
+      if (!isReady) return;
+
       const wrapper = document.getElementById('faceWrapper');
       const mask = document.getElementById('mouthMaskContainer');
       const sprite = document.getElementById('mouthSprite');
+      const faceBase = document.getElementById('faceBase');
 
-      const left = document.getElementById('maskLeft').value;
-      const top = document.getElementById('maskTop').value;
-      const width = document.getElementById('maskWidth').value;
-      const height = document.getElementById('maskHeight').value;
-      const feather = document.getElementById('maskFeather').value;
-      const radius = document.getElementById('maskRadius').value; // NOUVEAU
+      // Utilisation du cache pour éviter les recalculs inutiles
+      const dimensions = getFaceBaseDimensions();
+      const displayWidth = dimensions.width;
+      const displayHeight = dimensions.height;
 
-      // Application des styles au masque
-      mask.style.left = left + '%';
-      mask.style.top = top + '%';
-      mask.style.width = width + '%';
-      mask.style.height = height + '%';
-      mask.style.borderRadius = radius + '%'; // Applique la forme (0% = rectangle)
+      const maskLeft = parseFloat(document.getElementById('maskLeft').value);
+      const maskTop = parseFloat(document.getElementById('maskTop').value);
+      const maskWidth = parseFloat(document.getElementById('maskWidth').value);
+      const maskHeight = parseFloat(document.getElementById('maskHeight').value);
+      const maskRadius = parseFloat(document.getElementById('maskRadius').value);
+      const maskFeather = parseFloat(document.getElementById('maskFeather').value);
 
-      mask.style.boxShadow = `inset 0 0 ${feather}px ${feather / 2}px rgba(0,0,0,0.8)`;
+      const visemeScale = parseFloat(document.getElementById('visemeScale').value) / 100;
+      const visemeOffsetX = parseFloat(document.getElementById('visemeOffsetX').value);
+      const visemeOffsetY = parseFloat(document.getElementById('visemeOffsetY').value);
+      const visemeRotation = parseFloat(document.getElementById('visemeRotation').value);
 
-      const maskVisible = document.getElementById('maskVisible').checked;
-      mask.style.display = maskVisible ? 'block' : 'none';
+      // Calcul des dimensions du masque en pixels
+      const maskPixelW = (displayWidth * maskWidth) / 100;
+      const maskPixelH = (displayHeight * maskHeight) / 100;
 
-      // Alignement du sprite interne (Négatif)
+      // Position du masque avec transform pour centrage précis
+      mask.style.left = `${maskLeft}%`;
+      mask.style.top = `${maskTop}%`;
+      mask.style.width = `${maskPixelW}px`;
+      mask.style.height = `${maskPixelH}px`;
+      mask.style.borderRadius = `${maskRadius}%`;
+
+      // Effet de flou avec dégradé pour transition douce
+      const featherGradient = `
+        inset 0 0 ${maskFeather}px ${maskFeather / 2}px rgba(0,0,0,0.8),
+        inset 0 0 ${maskFeather * 2}px ${maskFeather}px rgba(0,0,0,0.4)
+      `;
+      mask.style.boxShadow = featherGradient;
+
+      // Calcul précis des offsets
+      const offsetX = (maskPixelW * visemeOffsetX / 100);
+      const offsetY = (maskPixelH * visemeOffsetY / 100);
+
+      // Application de la transformation avec interpolation
+      sprite.style.transform = `
+        translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))
+        scale(${visemeScale})
+        rotate(${visemeRotation}deg)
+      `;
+
+      // Debug info
+      if (debugMode) {
+        document.getElementById('debugDimensions').textContent =
+          `${Math.round(displayWidth)}x${Math.round(displayHeight)}`;
+      }
+
+      // Invalider le cache
+      cache.invalidate();
+    }
+
+    // --- Mapping phonétique amélioré avec contexte ---
+    function charToViseme(char, context = '') {
+      const c = char.toLowerCase();
+      const prevChar = context.slice(-1).toLowerCase();
+      const nextChar = context.slice(1, 2).toLowerCase();
+
+      // 1. Gestion des silences et des caractères spéciaux
+      if (/\s/.test(c) || /[.,!?;:]/.test(c)) {
+        return 'H';
+      }
+
+      // 2. Voyelles ouvertes (A)
+      if (/[aàâæ]/.test(c)) return 'A';
+
+      // 3. Voyelles moyennes (E)
+      if (/[eèêé]/.test(c) && !/[i]/.test(c)) return 'E';
+
+      // 4. Voyelles fermées (I)
+      if (/[iîïy]/.test(c)) return 'I';
+
+      // 5. Voyelles arrondies (O, U)
+      if (/[oôœ]/.test(c)) return 'O';
+      if (/[uùû]/.test(c)) return 'U';
+
+      // 6. Fricatives/Sifflantes (S)
+      if (/[s z c ç x j]/.test(c) || /ch/.test(c)) return 'S';
+
+      // 7. Labiodentales (F)
+      if (/[f v]/.test(c)) return 'F';
+
+      // 8. Dentales/Occlusives (D)
+      if (/[t d n l r g k]/.test(c)) {
+        // Ajustement contextuel pour les liquides
+        if (/[l r]/.test(c)) return 'L';
+        return 'D';
+      }
+
+      // 9. Glissantes (W)
+      if (/[w qu]/.test(c)) return 'W';
+
+      // Par défaut, retourner la forme la plus neutre
+      return 'H';
+    }
+
+    // --- MAPPING SIMPLIFIÉ POUR ÉVÉNEMENTS BOUNDARY ---
+    function buildBoundaryCharMap(text) {
+      return text.split('').map((char, index) => ({
+        index,
+        char,
+        viseme: charToViseme(char)
+      }));
+    }
+
+    // --- TIMELINE COMPLÈTE POUR FALLBACK ---
+    function buildVisemeTimeline(text) {
+      const baseCharMs = parseInt(document.getElementById('baseCharMs').value, 10);
+      const speechRate = parseInt(document.getElementById('speechRate').value, 10) / 100;
+      const silenceMinMs = parseInt(document.getElementById('silenceMinMs').value, 10);
+      const wordPauseMs = parseInt(document.getElementById('wordPauseMs').value, 10) / speechRate;
+
+      const timeline = [];
+      let t = 0;
+
+      text.split(/(\s+)/).forEach(token => {
+        if (!token.trim()) {
+          const pause = Math.max(silenceMinMs, wordPauseMs);
+          timeline.push({ start: t, end: t + pause / 1000, viseme: 'H', char: ' ', context: '' });
+          t += pause / 1000;
+          return;
+        }
+
+        token.split('').forEach((char, i) => {
+          const durationMs = calculateDuration(char, token, baseCharMs / speechRate);
+          const duration = Math.max(durationMs, silenceMinMs) / 1000;
+          timeline.push({ start: t, end: t + duration, viseme: charToViseme(char, token), char, context: token });
+          t += duration;
+        });
+      });
+
+      if (!timeline.length) {
+        timeline.push({ start: 0, end: 0.4, viseme: 'H', char: ' ', context: '' });
+      }
+
+      return timeline;
+    }
+
+    function scheduleVisemeAhead(viseme, delayMs, context = {}) {
+      // On avance le visème artificiellement
+      const triggerTime = performance.now() - delayMs;
       requestAnimationFrame(() => {
-        const wrapW = wrapper.offsetWidth;
-        const wrapH = wrapper.offsetHeight;
-        const scale = document.getElementById('visemeScale').value / 100;
-
-        sprite.style.width = (wrapW * scale) + 'px';
-        sprite.style.height = 'auto';
-
-        const maskRect = mask.getBoundingClientRect();
-        const wrapRect = wrapper.getBoundingClientRect();
-
-        const offsetX = maskRect.left - wrapRect.left;
-        const offsetY = maskRect.top - wrapRect.top;
-        const visemeOffsetX = parseInt(document.getElementById('visemeOffsetX').value);
-        const visemeOffsetY = parseInt(document.getElementById('visemeOffsetY').value);
-
-        sprite.style.left = (-offsetX + visemeOffsetX) + 'px';
-        sprite.style.top = (-offsetY + visemeOffsetY) + 'px';
+        setViseme(viseme, 1, true, 'auto', context);
       });
     }
 
-    window.addEventListener('resize', updateMask);
-    document.getElementById('faceBase').onload = updateMask;
+    // Active la synchro en direct à partir des événements boundary
+    function enableAutoLipSync(utterance, text) {
+      // Build character-to-viseme mapping for real-time lookup
+      const charMap = buildCharVisemeMap(text);
 
-    // --- SETTINGS UI ---
-    function toggleSettings() {
-      document.getElementById('settingsPanel').classList.toggle('open');
-      setTimeout(updateMask, 100);
-    }
-
-    function saveSettings() {
-      const maskVisible = document.getElementById('maskVisible').checked;
-      const s = {
-        left: document.getElementById('maskLeft').value,
-        top: document.getElementById('maskTop').value,
-        width: document.getElementById('maskWidth').value,
-        height: document.getElementById('maskHeight').value,
-        feather: document.getElementById('maskFeather').value,
-        radius: document.getElementById('maskRadius').value,
-        visible: maskVisible,
-        offsetX: document.getElementById('visemeOffsetX').value,
-        offsetY: document.getElementById('visemeOffsetY').value,
-        scale: document.getElementById('visemeScale').value
+      utterance.onboundary = (event) => {
+        // Use character index for precise timing
+        if (event.charIndex !== undefined && event.charIndex >= 0) {
+          const entry = charMap[event.charIndex];
+          if (entry && entry.viseme !== currentViseme) {
+            const leadTime = 80; // Avance de 80 ms (ajuste selon la voix ou la latence observée)
+            scheduleVisemeAhead(entry.viseme, leadTime, {
+              source: 'boundary',
+              char: entry.char,
+              context: entry.context || text
+            });
+          }
+        }
       };
-      localStorage.setItem('cloneSettings_rect', JSON.stringify(s));
-      localStorage.setItem('defaultConfig', JSON.stringify(s)); // Sauvegarder comme défaut
-      alert("Configuration sauvegardée comme défaut !");
+
+      // Override onstart to prevent dual sync
+      utterance.onstart = () => {
+        const status = document.getElementById('status');
+        status.textContent = "🗣️ En train de parler...";
+        status.classList.add('speaking');
+        // NO timeline animation - boundary events handle everything
+      };
     }
 
-    function loadSettings() {
-      const saved = localStorage.getItem('cloneSettings_rect');
-      if (saved) {
-        const s = JSON.parse(saved);
-        if (s.left) document.getElementById('maskLeft').value = s.left;
-        if (s.top) document.getElementById('maskTop').value = s.top;
-        if (s.width) document.getElementById('maskWidth').value = s.width;
-        if (s.height) document.getElementById('maskHeight').value = s.height;
-        if (s.feather) document.getElementById('maskFeather').value = s.feather;
-        if (s.radius !== undefined) document.getElementById('maskRadius').value = s.radius;
-        if (s.visible !== undefined) document.getElementById('maskVisible').checked = s.visible;
-        if (s.offsetX) document.getElementById('visemeOffsetX').value = s.offsetX;
-        if (s.offsetY) document.getElementById('visemeOffsetY').value = s.offsetY;
-        if (s.scale) document.getElementById('visemeScale').value = s.scale;
-        updateMask();
+    // Sélection de voix française améliorée
+    function setFrenchVoice(utterance, voices) {
+      const frVoice = voices.find(v =>
+        (v.lang.startsWith('fr') || v.name.includes('French')) &&
+        (v.localService || v.voiceURI.includes('google'))
+      ) || voices[0];
+
+      if (frVoice) utterance.voice = frVoice;
+    }
+
+    // --- Calcul de durée contextuelle ---
+    function calculateDuration(char, context = '', baseDuration) {
+      const c = char.toLowerCase();
+      const prevChar = context.slice(-1).toLowerCase();
+      const nextChar = context.slice(1, 2).toLowerCase();
+
+      let duration = baseDuration;
+
+      // Ajustements basés sur le contexte phonétique
+      if (/[aeiou]/.test(c)) {
+        // Voyelles plus longues
+        duration *= 1.2;
+      } else if (/[fvsz]/.test(c)) {
+        // Fricatives légèrement plus courtes
+        duration *= 0.9;
+      } else if (/[ptkbdg]/.test(c)) {
+        // Occlusives plus courtes
+        duration *= 0.8;
       }
+
+      // Gestion des diphtongues
+      if (/[aeiou]/.test(prevChar) && /[aeiou]/.test(c)) {
+        duration *= 0.7; // Diphtongues plus rapides
+      }
+
+      // Gestion des consonnes doubles
+      if (c === prevChar && /[bpdtkg]/.test(c)) {
+        duration *= 0.6; // Consonnes doubles plus courtes
+      }
+
+      return duration;
     }
 
-    // --- AUDIO & ANIMATION BASIQUE ---
-    let synth = window.speechSynthesis;
-    let recognition;
-    let animFrame;
+    // Construit une table caractère -> visème sur la chaîne entière avec timing
+    function buildCharVisemeMap(text) {
+      const chars = text.split('');
+      const baseCharMs = parseInt(document.getElementById('baseCharMs').value, 10);
+      const speechRate = parseInt(document.getElementById('speechRate').value, 10) / 100;
+      const silenceMinMs = parseInt(document.getElementById('silenceMinMs').value, 10);
 
+      const timeline = [];
+      let t = 0; // Time in SECONDS
+
+      // Nettoyage du texte
+      const cleanText = text.trim().replace(/[.,!?;:]/g, ' ');
+      const words = cleanText.split(/\s+/).filter(Boolean);
+
+      for (let w = 0; w < words.length; w++) {
+        const word = words[w];
+        const chars = word.split('');
+
+        for (let i = 0; i < chars.length; i++) {
+          const char = chars[i];
+          const viseme = charToViseme(char, word);
+          // CRITICAL FIX: Calculate duration in ms, then convert to seconds
+          const durationMs = calculateDuration(char, word, baseCharMs / speechRate);
+          const duration = durationMs / 1000; // Convert to seconds
+
+          // Gestion des silences minimums (convertir silenceMinMs en secondes)
+          if (viseme === 'H' && duration < silenceMinMs / 1000) {
+            duration = silenceMinMs / 1000;
+          }
+
+          timeline.push({
+            start: t, // Time in seconds
+            end: t + duration, // Time in seconds
+            viseme,
+            char,
+            word: w,
+            intensity: 1.0,
+            context: word
+          });
+          t += duration; // Increment in seconds
+        }
+
+        // Pause entre les mots (convertir wordPauseMs en secondes)
+        if (w < words.length - 1) {
+          const pauseDur = (parseInt(document.getElementById('wordPauseMs').value, 10) / speechRate) / 1000;
+          timeline.push({
+            start: t,
+            end: t + pauseDur,
+            viseme: 'H',
+            char: ' ',
+            word: -1,
+            intensity: 0.5,
+            context: ''
+          });
+          t += pauseDur;
+        }
+      }
+
+      // Visème de repos final
+      if (timeline.length === 0) {
+        timeline.push({
+          start: 0,
+          end: 0.4,
+          viseme: 'H',
+          intensity: 0.3,
+          context: ''
+        });
+      }
+
+      return timeline;
+    }
+
+
+
+    // --- Reconnaissance vocale améliorée ---
     function startListening() {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!SpeechRecognition) return alert("Pas de support Speech API");
+      if (!isReady) {
+        alert("Le système n'est pas encore prêt.");
+        return;
+      }
 
-      recognition = new SpeechRecognition();
+      const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SR) {
+        alert("Votre navigateur ne supporte pas la reconnaissance vocale (essayez Chrome/Edge).");
+        return;
+      }
+
+      if (recognition) {
+        recognition.abort();
+        recognition = null;
+      }
+
+      recognition = new SR();
       recognition.lang = "fr-FR";
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.maxAlternatives = 1;
+
+      const status = document.getElementById('status');
+      status.classList.remove('error');
+      status.classList.add('speaking');
+      status.textContent = "🎙️ J'écoute...";
+
       recognition.onresult = (e) => {
-        const txt = e.results[0][0].transcript;
-        document.getElementById('status').innerText = txt;
-        speak(txt);
+        const result = e.results[e.results.length - 1];
+        const txt = result[0].transcript;
+
+        if (result.isFinal) {
+          status.textContent = `Entendu : "${txt}"`;
+          speak(textCleanup(txt));
+        } else {
+          status.textContent = `🎙️ "${txt}..."`;
+        }
       };
+
+      recognition.onerror = (e) => {
+        status.textContent = "Erreur micro : " + e.error;
+        status.classList.add('error');
+        status.classList.remove('speaking');
+      };
+
+      recognition.onend = () => {
+        status.classList.remove('speaking');
+      };
+
       recognition.start();
-      document.getElementById('status').innerText = "Écoute...";
     }
 
-    function stopListening() {
-      if (recognition) recognition.stop();
-      synth.cancel();
-      cancelAnimationFrame(animFrame);
-      document.getElementById('mouthSprite').src = 'sprites/bouche_H.png';
-      document.getElementById('status').innerText = "Arrêté.";
+    function textCleanup(text) {
+      return text.replace(/\s+/g, ' ').trim();
     }
 
-    function testSpeech() {
-      speak("Je parle maintenant avec un masque rectangulaire ajustable.");
-    }
-
+    // --- Synthèse vocale avec synchronisation précise ---
     function speak(text) {
+      if (!isReady || !text) return;
+
       if (synth.speaking) synth.cancel();
+      if (animFrame) cancelAnimationFrame(animFrame);
+
+      const status = document.getElementById('status');
+      status.classList.remove('error');
+
       const utt = new SpeechSynthesisUtterance(text);
       utt.lang = 'fr-FR';
+      utt.rate = parseInt(document.getElementById('speechRate').value, 10) / 100;
+      utt.pitch = 1.0;
+      utt.volume = 1.0;
 
-      utt.onstart = () => { animateMouth(); };
-      utt.onend = () => {
-        cancelAnimationFrame(animFrame);
-        document.getElementById('mouthSprite').src = 'sprites/bouche_H.png';
+      // CORRECTION : Charger les voix correctement
+      let voices = synth.getVoices();
+      if (voices.length === 0) {
+        synth.onvoiceschanged = () => {
+          voices = synth.getVoices();
+          setFrenchVoice(utt, voices);
+        };
+      } else {
+        setFrenchVoice(utt, voices);
+      }
+
+      // CORRECTION : Toujours créer une timeline valide
+      const timeline = buildCharVisemeMap(text);
+      lastTimeline = timeline;
+
+      // CORRECTION : Déplacer la détection de boundary ici
+      const supportsBoundary = 'onboundary' in utt;
+      if (supportsBoundary) {
+        enableAutoLipSync(utt, text);
+      }
+
+      utt.onstart = () => {
+        status.textContent = "🗣️ En train de parler...";
+        status.classList.add('speaking');
+        // CORRECTION : Toujours démarrer l'animation même sans boundary
+        if (!supportsBoundary) {
+          // Pas de boundary dispo : on utilise la timeline existante
+          animateMouth(timeline);
+        }
       };
+
+      utt.onend = () => {
+        if (animFrame) cancelAnimationFrame(animFrame);
+        // SÉCURITÉ FINALE : Toujours utiliser immediate=true pour la fin
+        setViseme('H', 1, true);
+        status.textContent = "Terminé.";
+        status.classList.remove('speaking');
+      };
+
+      utt.onerror = (e) => {
+        status.textContent = "Erreur synthèse : " + e.error;
+        status.classList.add('error');
+        status.classList.remove('speaking');
+      };
+
       synth.speak(utt);
     }
 
-    function animateMouth() {
-      const keys = Object.keys(VISEME_MAP);
-      let lastTime = 0;
-      function loop(time) {
-        if (time - lastTime > 100) {
-          const r = keys[Math.floor(Math.random() * (keys.length - 1))];
-          document.getElementById('mouthSprite').src = `sprites/${VISEME_MAP[r]}`;
-          lastTime = time;
-        }
-        animFrame = requestAnimationFrame(loop);
+    // --- DURÉES DE TRANSITION FIXES POUR MODE HYBRIDE ---
+    const VOWEL_TRANSITION_MS = 16; // Voyelles: 12-20ms max
+    // Consonnes: 0ms (instantané)
+
+    // --- AVANCE VISÈME POUR COMPENSER LE DÉLAI NAVIGATEUR ---
+    const VISIME_LEAD_MS = 120; // Augmentez cette valeur si nécessaire
+
+    // --- SYSTÈME DE FILE D'ATTENTE POUR SYNCHRONISATION PRÉCISE ---
+    let speechStartTime = null;
+    let boundaryQueue = [];
+    let boundaryLoopId = null;
+
+    // --- HYBRIDE : décision de transition basée sur le type phonétique ---
+    function shouldUseSmoothTransition(viseme) {
+      return VISEME_TYPE[viseme] === 'vowel';
+    }
+
+    // --- CHANGEMENT OPTIMISÉ AVEC IMAGES INDIVIDUELLES ---
+    function setViseme(viseme, opacity = 1, immediate = false, mode = 'auto', context = {}) {
+      const sprite = document.getElementById('mouthSprite');
+
+      if (currentViseme === viseme && opacity === 1) return;
+
+      // DURÉES STRICTES - Consonnes = 0ms, Voyelles = 16ms
+      const isVowel = shouldUseSmoothTransition(viseme);
+      const transitionMs = immediate || !isVowel ? 0 : Math.min(VOWEL_TRANSITION_MS, 8); // Réduire la transition
+
+      // Appliquer la transition appropriée avec durées fixes
+      if (transitionMs > 0) {
+        sprite.style.transition = `opacity ${transitionMs}ms linear, transform ${transitionMs}ms linear`;
+      } else {
+        sprite.style.transition = 'none';
       }
-      animFrame = requestAnimationFrame(loop);
+
+      // CHANGER L'IMAGE SRC (optimisé avec GPU acceleration)
+      if (visemeImages[viseme]) {
+        sprite.src = visemeImages[viseme].src;
+        currentViseme = viseme;
+
+        if (debugMode) {
+          document.getElementById('debugViseme').textContent = viseme;
+          lastContext = viseme;
+          lastVisemeTime = performance.now();
+        }
+      }
+
+      sprite.style.opacity = opacity;
     }
 
-    window.onload = () => {
-      loadSettings();
-      setTimeout(updateMask, 500);
-    };
-  </script>
+    // --- Animation haute performance avec RAF et interpolation ---
+    function animateMouth(timeline) {
+      const startTime = performance.now();
+      const totalDuration = timeline[timeline.length - 1].end * 1000;
+      let lastViseme = 'H';
+      let currentIndex = 0;
+      let lastInterpolationTime = 0;
 
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then(reg => console.log('✅ PWA installée:', reg.scope))
-          .catch(err => console.log('❌ Erreur PWA:', err));
+      function update(now) {
+        // FPS counter
+        if (debugMode) {
+          fpsCounter.frames++;
+          if (now - fpsCounter.lastTime >= 1000) {
+            document.getElementById('debugFPS').textContent = fpsCounter.frames;
+            fpsCounter.frames = 0;
+            fpsCounter.lastTime = now;
+          }
+        }
+
+        const elapsed = now - startTime;
+        const elapsedSec = elapsed / 1000;
+
+        // Recherche optimisée du visème courant
+        while (currentIndex < timeline.length &&
+          timeline[currentIndex].end < elapsedSec) {
+          currentIndex++;
+        }
+
+        if (currentIndex < timeline.length) {
+          const current = timeline[currentIndex];
+
+          // MODE HYBRIDE : Pas d'interpolation, transitions basées sur le type phonétique
+          if (current.viseme !== lastViseme) {
+            // Timeline fallback utilise le mode hybride automatiquement
+            setViseme(current.viseme, 1, false, 'auto', {
+              source: 'timeline',
+              char: current.char,
+              context: current.context
+            });
+            lastViseme = current.viseme;
+          }
+
+          if (debugMode) {
+            document.getElementById('debugTimeline').textContent =
+              `${currentIndex + 1}/${timeline.length}`;
+            document.getElementById('debugContext').textContent = current.context || '-';
+
+            // Calcul de la latence
+            const latency = now - lastVisemeTime;
+            document.getElementById('debugLatency').textContent = `${Math.round(latency)}ms`;
+          }
+        }
+
+        if (elapsed < totalDuration) {
+          animFrame = requestAnimationFrame(update);
+        } else {
+          setViseme('H');
+        }
+      }
+
+      animFrame = requestAnimationFrame(update);
+    }
+
+    // --- STOP GLOBAL ---
+    function stopAll() {
+      if (recognition) {
+        recognition.stop();
+        recognition = null;
+      }
+      if (synth.speaking) synth.cancel();
+      if (animFrame) {
+        cancelAnimationFrame(animFrame);
+        animFrame = null;
+      }
+
+      setViseme('H');
+
+      const status = document.getElementById('status');
+      status.textContent = "Arrêté.";
+      status.classList.remove('error', 'speaking');
+    }
+
+    // --- TEST SANS MICRO ---
+    function testSpeech() {
+      if (!isReady) {
+        alert("Le système n'est pas encore prêt.");
+        return;
+      }
+      const testPhrases = [
+        "Bonjour, je suis votre assistant virtuel avec synchronisation labiale optimisée et interpolation intelligente.",
+        "Cette technologie permet une animation réaliste de la bouche avec des transitions fluides entre les visèmes.",
+        "Les visèmes sont synchronisés avec la synthèse vocale en temps réel, avec gestion du contexte phonétique."
+      ];
+      const phrase = testPhrases[Math.floor(Math.random() * testPhrases.length)];
+      speak(phrase);
+    }
+
+    // --- Panneau de réglages ---
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      panel.classList.toggle('open');
+      updateSliderLabels();
+      setTimeout(updateMask, 100);
+    }
+
+    // --- Mode debug ---
+    function toggleDebug() {
+      debugMode = !debugMode;
+      const debugInfo = document.getElementById('debugInfo');
+      debugInfo.classList.toggle('active', debugMode);
+    }
+
+    // --- Sauvegarde des paramètres ---
+    function saveSettings() {
+      const ids = [
+        'maskLeft', 'maskTop', 'maskWidth', 'maskHeight',
+        'maskRadius', 'maskFeather',
+        'visemeScale', 'visemeOffsetX', 'visemeOffsetY', 'visemeRotation',
+        'transitionMs', 'baseCharMs', 'wordPauseMs', 'speechRate', 'interpolation', 'silenceMinMs'
+      ];
+      const settings = {};
+      let configText = "Configuration actuelle pour index.html :\n\n";
+
+      ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          const value = el.value;
+          settings[id] = value;
+          configText += `<input type="range" id="${id}" min="${el.min}" max="${el.max}" step="${el.step}" value="${value}">\n`;
+        }
       });
+
+      localStorage.setItem('cloneSettings', JSON.stringify(settings));
+
+      // Afficher le texte de configuration
+      const status = document.getElementById('status');
+      status.textContent = "Configuration générée !";
+      status.classList.remove('error');
+
+      // Copier dans le presse-papiers si possible
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(configText).then(() => {
+          alert("Configuration copiée dans le presse-papiers !\n\n" + configText);
+        }).catch(() => {
+          alert("Configuration générée :\n\n" + configText);
+        });
+      } else {
+        alert("Configuration générée :\n\n" + configText);
+      }
+
+      setTimeout(() => {
+        if (status.textContent.startsWith("Configuration")) {
+          status.textContent = "Prêt.";
+        }
+      }, 3000);
     }
+
+    // --- Réinitialisation des paramètres ---
+    function resetSettings() {
+      if (confirm("Réinitialiser tous les paramètres par défaut ?")) {
+        localStorage.removeItem('cloneSettings');
+        location.reload();
+      }
+    }
+
+    // --- Chargement des paramètres ---
+    function loadSettings() {
+      const saved = localStorage.getItem('cloneSettings');
+      if (saved) {
+        try {
+          const settings = JSON.parse(saved);
+          Object.entries(settings).forEach(([id, value]) => {
+            const el = document.getElementById(id);
+            const inputEl = document.getElementById('input_' + id);
+            if (el) el.value = value;
+            if (inputEl) inputEl.value = value;
+          });
+        } catch (e) {
+          console.error("Erreur de chargement des paramètres:", e);
+        }
+      }
+
+      // Synchronisation sliders <-> inputs
+      const sliderIds = [
+        'maskLeft', 'maskTop', 'maskWidth', 'maskHeight',
+        'maskRadius', 'maskFeather',
+        'visemeScale', 'visemeOffsetX', 'visemeOffsetY', 'visemeRotation',
+        'transitionMs', 'baseCharMs', 'wordPauseMs', 'speechRate', 'interpolation', 'silenceMinMs'
+      ];
+
+      sliderIds.forEach(id => {
+        const slider = document.getElementById(id);
+        const input = document.getElementById('input_' + id);
+
+        if (slider && input) {
+          // Slider vers input
+          slider.addEventListener('input', () => {
+            input.value = slider.value;
+            updateSliderLabels();
+            clearTimeout(slider.debounceTimer);
+            slider.debounceTimer = setTimeout(updateMask, 50);
+          });
+
+          // Input vers slider
+          input.addEventListener('input', () => {
+            let value = parseFloat(input.value);
+            const min = parseFloat(input.min);
+            const max = parseFloat(input.max);
+            value = Math.max(min, Math.min(max, value));
+            slider.value = value;
+            input.value = value;
+            updateSliderLabels();
+            clearTimeout(input.debounceTimer);
+            input.debounceTimer = setTimeout(updateMask, 50);
+          });
+
+          // Validation à la perte de focus
+          input.addEventListener('blur', () => {
+            let value = parseFloat(input.value);
+            const min = parseFloat(input.min);
+            const max = parseFloat(input.max);
+            if (isNaN(value)) value = slider.value;
+            value = Math.max(min, Math.min(max, value));
+            slider.value = value;
+            input.value = value;
+            updateSliderLabels();
+            updateMask();
+          });
+        }
+      });
+
+      updateSliderLabels();
+    }
+
+    // --- Gestion du redimensionnement avec debounce ---
+    function handleResize() {
+      clearTimeout(resizeDebounce);
+      resizeDebounce = setTimeout(() => {
+        cache.invalidate();
+        updateMask();
+      }, 250);
+    }
+
+    // --- Initialisation ---
+    window.addEventListener('DOMContentLoaded', () => {
+      loadSettings();
+      preloadImages();
+
+      window.addEventListener('resize', handleResize);
+
+      const faceBase = document.getElementById('faceBase');
+
+      faceBase.addEventListener('load', () => {
+        faceBaseDimensions = getFaceBaseDimensions();
+        setTimeout(updateMask, 100);
+      });
+
+      faceBase.addEventListener('error', () => {
+        const status = document.getElementById('status');
+        status.textContent = "❌ Erreur: Image de base (zero.jpg) introuvable";
+        status.classList.add('error');
+      });
+
+      // CORRECTION : Forcer le chargement des voix
+      synth.onvoiceschanged = () => {
+        console.log("Voix chargées:", synth.getVoices().length);
+      };
+      synth.getVoices(); // Déclencher le chargement
+    });
+
+    // Nettoyage à la fermeture
+    window.addEventListener('beforeunload', () => {
+      stopAll();
+    });
   </script>
 </body>
 
