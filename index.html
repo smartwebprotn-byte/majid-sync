@@ -362,42 +362,42 @@
       <label class="setting-label">Position X (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskLeft" min="0" max="100" step="0.1">
-        <input type="range" id="maskLeft" min="0" max="100" step="0.1" value="49.8">
+        <input type="range" id="maskLeft" min="0" max="100" step="0.1" value="49.6">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Position Y (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskTop" min="0" max="100" step="0.1">
-        <input type="range" id="maskTop" min="0" max="100" step="0.1" value="62.5">
+        <input type="range" id="maskTop" min="0" max="100" step="0.1" value="58.1">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Largeur (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskWidth" min="5" max="50" step="0.1">
-        <input type="range" id="maskWidth" min="5" max="50" step="0.1" value="39.8">
+        <input type="range" id="maskWidth" min="5" max="50" step="0.1" value="21">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Hauteur (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskHeight" min="5" max="40" step="0.1">
-        <input type="range" id="maskHeight" min="5" max="40" step="0.1" value="38.2">
+        <input type="range" id="maskHeight" min="5" max="40" step="0.1" value="16.2">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Arrondi bords (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskRadius" min="0" max="50" step="1">
-        <input type="range" id="maskRadius" min="0" max="50" step="1" value="20">
+        <input type="range" id="maskRadius" min="0" max="50" step="1" value="46">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Flou bords (px)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_maskFeather" min="0" max="50" step="1">
-        <input type="range" id="maskFeather" min="0" max="50" step="1" value="5">
+        <input type="range" id="maskFeather" min="0" max="50" step="1" value="0">
       </div>
     </div>
 
@@ -407,21 +407,21 @@
       <label class="setting-label">Échelle visème (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_visemeScale" min="50" max="400" step="5">
-        <input type="range" id="visemeScale" min="50" max="600" step="5" value="250">
+        <input type="range" id="visemeScale" min="50" max="600" step="5" value="115">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Décalage X (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_visemeOffsetX" min="-50" max="50" step="1">
-        <input type="range" id="visemeOffsetX" min="-50" max="50" step="1" value="0">
+        <input type="range" id="visemeOffsetX" min="-50" max="50" step="1" value="-2">
       </div>
     </div>
     <div class="setting-group">
       <label class="setting-label">Décalage Y (%)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_visemeOffsetY" min="-80" max="50" step="1">
-        <input type="range" id="visemeOffsetY" min="-80" max="50" step="1" value="-33">
+        <input type="range" id="visemeOffsetY" min="-80" max="50" step="1" value="-4">
       </div>
     </div>
     <div class="setting-group">
@@ -473,7 +473,7 @@
       <label class="setting-label">Silence minimum (ms)</label>
       <div class="setting-input-group">
         <input type="number" class="setting-input" id="input_silenceMinMs" min="0" max="500" step="10">
-        <input type="range" id="silenceMinMs" min="0" max="500" step="10" value="15">
+        <input type="range" id="silenceMinMs" min="0" max="500" step="10" value="20">
       </div>
     </div>
 
@@ -618,59 +618,63 @@
       });
     }
 
+    function getMaskConfig() {
+      return {
+        leftPercent: parseFloat(document.getElementById('maskLeft').value),
+        topPercent: parseFloat(document.getElementById('maskTop').value),
+        widthPercent: parseFloat(document.getElementById('maskWidth').value),
+        heightPercent: parseFloat(document.getElementById('maskHeight').value),
+        radiusPercent: parseFloat(document.getElementById('maskRadius').value),
+        featherPx: parseFloat(document.getElementById('maskFeather').value)
+      };
+    }
+
+    function getSpriteConfig() {
+      return {
+        scale: parseFloat(document.getElementById('visemeScale').value) / 100,
+        offsetXPercent: parseFloat(document.getElementById('visemeOffsetX').value),
+        offsetYPercent: parseFloat(document.getElementById('visemeOffsetY').value),
+        rotationDeg: parseFloat(document.getElementById('visemeRotation').value)
+      };
+    }
+
     // --- Mise à jour optimisée du masque & du sprite ---
     function updateMask() {
       if (!isReady) return;
 
-      const wrapper = document.getElementById('faceWrapper');
       const mask = document.getElementById('mouthMaskContainer');
       const sprite = document.getElementById('mouthSprite');
-      const faceBase = document.getElementById('faceBase');
-
-      // Utilisation du cache pour éviter les recalculs inutiles
-      const dimensions = getFaceBaseDimensions();
-      const displayWidth = dimensions.width;
-      const displayHeight = dimensions.height;
-
-      const maskLeft = parseFloat(document.getElementById('maskLeft').value);
-      const maskTop = parseFloat(document.getElementById('maskTop').value);
-      const maskWidth = parseFloat(document.getElementById('maskWidth').value);
-      const maskHeight = parseFloat(document.getElementById('maskHeight').value);
-      const maskRadius = parseFloat(document.getElementById('maskRadius').value);
-      const maskFeather = parseFloat(document.getElementById('maskFeather').value);
-
-      const visemeScale = parseFloat(document.getElementById('visemeScale').value) / 100;
-      const visemeOffsetX = parseFloat(document.getElementById('visemeOffsetX').value);
-      const visemeOffsetY = parseFloat(document.getElementById('visemeOffsetY').value);
-      const visemeRotation = parseFloat(document.getElementById('visemeRotation').value);
+      const { width: displayWidth, height: displayHeight } = getFaceBaseDimensions();
+      const maskCfg = getMaskConfig();
+      const spriteCfg = getSpriteConfig();
 
       // Calcul des dimensions du masque en pixels
-      const maskPixelW = (displayWidth * maskWidth) / 100;
-      const maskPixelH = (displayHeight * maskHeight) / 100;
+      const maskPixelW = (displayWidth * maskCfg.widthPercent) / 100;
+      const maskPixelH = (displayHeight * maskCfg.heightPercent) / 100;
 
       // Position du masque avec transform pour centrage précis
-      mask.style.left = `${maskLeft}%`;
-      mask.style.top = `${maskTop}%`;
+      mask.style.left = `${maskCfg.leftPercent}%`;
+      mask.style.top = `${maskCfg.topPercent}%`;
       mask.style.width = `${maskPixelW}px`;
       mask.style.height = `${maskPixelH}px`;
-      mask.style.borderRadius = `${maskRadius}%`;
+      mask.style.borderRadius = `${maskCfg.radiusPercent}%`;
 
       // Effet de flou avec dégradé pour transition douce
       const featherGradient = `
-        inset 0 0 ${maskFeather}px ${maskFeather / 2}px rgba(0,0,0,0.8),
-        inset 0 0 ${maskFeather * 2}px ${maskFeather}px rgba(0,0,0,0.4)
+        inset 0 0 ${maskCfg.featherPx}px ${maskCfg.featherPx / 2}px rgba(0,0,0,0.8),
+        inset 0 0 ${maskCfg.featherPx * 2}px ${maskCfg.featherPx}px rgba(0,0,0,0.4)
       `;
       mask.style.boxShadow = featherGradient;
 
       // Calcul précis des offsets
-      const offsetX = (maskPixelW * visemeOffsetX / 100);
-      const offsetY = (maskPixelH * visemeOffsetY / 100);
+      const offsetX = (maskPixelW * spriteCfg.offsetXPercent / 100);
+      const offsetY = (maskPixelH * spriteCfg.offsetYPercent / 100);
 
       // Application de la transformation avec interpolation
       sprite.style.transform = `
         translate(calc(-50% + ${offsetX}px), calc(-50% + ${offsetY}px))
-        scale(${visemeScale})
-        rotate(${visemeRotation}deg)
+        scale(${spriteCfg.scale})
+        rotate(${spriteCfg.rotationDeg}deg)
       `;
 
       // Debug info
@@ -721,7 +725,9 @@
       }
 
       // 9. Glissantes (W)
-      if (/[w qu]/.test(c)) return 'W';
+      if (c === 'w') return 'W';
+      // Gestion rapide de "qu" au niveau du mot (ex: Parisien "quoi")
+      if (c === 'q' || c === 'u') return 'W';
 
       // Par défaut, retourner la forme la plus neutre
       return 'H';
@@ -736,74 +742,33 @@
       }));
     }
 
-    // --- TIMELINE COMPLÈTE POUR FALLBACK ---
-    function buildVisemeTimeline(text) {
-      const baseCharMs = parseInt(document.getElementById('baseCharMs').value, 10);
-      const speechRate = parseInt(document.getElementById('speechRate').value, 10) / 100;
-      const silenceMinMs = parseInt(document.getElementById('silenceMinMs').value, 10);
-      const wordPauseMs = parseInt(document.getElementById('wordPauseMs').value, 10) / speechRate;
 
-      const timeline = [];
-      let t = 0;
 
-      text.split(/(\s+)/).forEach(token => {
-        if (!token.trim()) {
-          const pause = Math.max(silenceMinMs, wordPauseMs);
-          timeline.push({ start: t, end: t + pause / 1000, viseme: 'H', char: ' ', context: '' });
-          t += pause / 1000;
-          return;
-        }
-
-        token.split('').forEach((char, i) => {
-          const durationMs = calculateDuration(char, token, baseCharMs / speechRate);
-          const duration = Math.max(durationMs, silenceMinMs) / 1000;
-          timeline.push({ start: t, end: t + duration, viseme: charToViseme(char, token), char, context: token });
-          t += duration;
-        });
-      });
-
-      if (!timeline.length) {
-        timeline.push({ start: 0, end: 0.4, viseme: 'H', char: ' ', context: '' });
-      }
-
-      return timeline;
-    }
-
-    function scheduleVisemeAhead(viseme, delayMs, context = {}) {
-      // On avance le visème artificiellement
-      const triggerTime = performance.now() - delayMs;
-      requestAnimationFrame(() => {
-        setViseme(viseme, 1, true, 'auto', context);
-      });
+    function scheduleVisemeAhead(viseme, leadMs, context = {}) {
+      // Ici on applique immédiatement (l'avance est gérée dans le choix du timing, pas dans le délai)
+      setViseme(viseme, 1, true, 'boundary', context);
     }
 
     // Active la synchro en direct à partir des événements boundary
     function enableAutoLipSync(utterance, text) {
-      // Build character-to-viseme mapping for real-time lookup
-      const charMap = buildCharVisemeMap(text);
+      const boundaryMap = buildBoundaryCharMap(text);
 
       utterance.onboundary = (event) => {
-        // Use character index for precise timing
-        if (event.charIndex !== undefined && event.charIndex >= 0) {
-          const entry = charMap[event.charIndex];
-          if (entry && entry.viseme !== currentViseme) {
-            const leadTime = 80; // Avance de 80 ms (ajuste selon la voix ou la latence observée)
+        if (event.charIndex != null && event.charIndex >= 0) {
+          const entry = boundaryMap[event.charIndex];
+          if (!entry) return;
+
+          if (entry.viseme && entry.viseme !== currentViseme) {
+            const leadTime = 80; // avance légère
             scheduleVisemeAhead(entry.viseme, leadTime, {
               source: 'boundary',
               char: entry.char,
-              context: entry.context || text
+              context: text
             });
           }
         }
       };
-
-      // Override onstart to prevent dual sync
-      utterance.onstart = () => {
-        const status = document.getElementById('status');
-        status.textContent = "🗣️ En train de parler...";
-        status.classList.add('speaking');
-        // NO timeline animation - boundary events handle everything
-      };
+      // NE PAS redéfinir utterance.onstart ici
     }
 
     // Sélection de voix française améliorée
@@ -871,8 +836,8 @@
           const char = chars[i];
           const viseme = charToViseme(char, word);
           // CRITICAL FIX: Calculate duration in ms, then convert to seconds
-          const durationMs = calculateDuration(char, word, baseCharMs / speechRate);
-          const duration = durationMs / 1000; // Convert to seconds
+          let durationMs = calculateDuration(char, word, baseCharMs / speechRate);
+          let duration = durationMs / 1000; // Convert to seconds
 
           // Gestion des silences minimums (convertir silenceMinMs en secondes)
           if (viseme === 'H' && duration < silenceMinMs / 1000) {
@@ -1052,10 +1017,7 @@
     // --- AVANCE VISÈME POUR COMPENSER LE DÉLAI NAVIGATEUR ---
     const VISIME_LEAD_MS = 120; // Augmentez cette valeur si nécessaire
 
-    // --- SYSTÈME DE FILE D'ATTENTE POUR SYNCHRONISATION PRÉCISE ---
-    let speechStartTime = null;
-    let boundaryQueue = [];
-    let boundaryLoopId = null;
+
 
     // --- HYBRIDE : décision de transition basée sur le type phonétique ---
     function shouldUseSmoothTransition(viseme) {
